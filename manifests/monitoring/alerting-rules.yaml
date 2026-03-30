@@ -1,0 +1,49 @@
+# =============================================================================
+# PrometheusRule — Alerting rules for the KEDA demo
+# =============================================================================
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: keda-demo-alerts
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  groups:
+    - name: keda.scaling
+      interval: 30s
+      rules:
+        # Alert if queue is growing faster than consumers can drain it
+        - alert: SQSQueueBacklogGrowing
+          expr: |
+            keda_scaler_metrics_value{scaledObject="consumer-scaledobject"} > 50
+            and
+            kube_deployment_status_replicas{deployment="consumer"} >= 20
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "SQS backlog growing but already at max replicas"
+            description: "Queue depth {{ $value }} messages but consumer is at maxReplicaCount. Consider increasing maxReplicaCount."
+
+        # Alert if consumer error rate is high
+        - alert: ConsumerHighErrorRate
+          expr: |
+            sum(rate(processing_errors_total{namespace="keda-demo"}[5m])) /
+            sum(rate(messages_processed_total{namespace="keda-demo"}[5m])) > 0.05
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            summary: "Consumer error rate above 5%"
+            description: "Error rate is {{ $value | humanizePercentage }}. Check consumer logs."
+
+        # Alert if KEDA operator is down
+        - alert: KEDAOperatorDown
+          expr: up{job="keda-operator"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "KEDA operator is not reachable"
+            description: "KEDA operator scrape target is down. Autoscaling is not functioning."

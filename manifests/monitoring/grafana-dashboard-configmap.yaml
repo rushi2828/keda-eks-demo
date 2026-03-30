@@ -1,0 +1,13 @@
+# ConfigMap that loads the Grafana dashboard JSON automatically
+# Referenced in prometheus-values.yaml under grafana.dashboardsConfigMaps
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-keda
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  keda-eks-demo.json: |
+    # Contents are injected at deploy time via the install script
+    # Run: scripts/install-monitoring.sh to create this correctly

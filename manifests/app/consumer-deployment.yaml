@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+  namespace: keda-demo
+  labels:
+    app: consumer
+spec:
+  # replicas intentionally omitted — managed by KEDA ScaledObject
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      serviceAccountName: keda-consumer-sa
+      containers:
+        - name: consumer
+          image: your-ecr-repo/keda-consumer:latest
+          env:
+            - name: SQS_QUEUE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: keda-demo-config
+                  key: SQS_QUEUE_URL
+            - name: AWS_REGION
+              valueFrom:
+                configMapKeyRef:
+                  name: keda-demo-config
+                  key: AWS_REGION
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: keda-demo-config
+  namespace: keda-demo
+data:
+  SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/keda-demo-queue"
+  AWS_REGION: "us-east-1"

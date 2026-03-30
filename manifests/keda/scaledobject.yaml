@@ -1,0 +1,35 @@
+# ─────────────────────────────────────────────────────────────────
+# ScaledObject: links the consumer Deployment to the SQS trigger
+# KEDA watches SQS queue depth and adjusts replica count accordingly
+# ─────────────────────────────────────────────────────────────────
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: consumer-scaledobject
+  namespace: keda-demo
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: consumer
+
+  # Scale-to-zero: pods go to 0 when queue is empty
+  minReplicaCount: 0
+  maxReplicaCount: 20
+
+  # Poll SQS every 30 seconds
+  pollingInterval: 30
+
+  # Wait 300s (5 min) before scaling down to zero
+  cooldownPeriod: 300
+
+  triggers:
+    - type: aws-sqs-queue
+      authenticationRef:
+        name: keda-trigger-auth-aws
+      metadata:
+        # Replace ACCOUNT_ID with your AWS account ID
+        queueURL: https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/keda-demo-queue
+        queueLength: "5"     # Target: 1 pod per 5 messages in queue
+        awsRegion: us-east-1
+        identityOwner: operator

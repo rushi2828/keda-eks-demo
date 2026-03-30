@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KEDA on EKS — Demo Project</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Sora:wght@300;400;600;700&display=swap');
+
+  :root {
+    --bg: #0a0e1a;
+    --surface: #111827;
+    --card: #1a2235;
+    --border: #243048;
+    --accent: #00d9ff;
+    --accent2: #7c3aed;
+    --green: #22c55e;
+    --orange: #f59e0b;
+    --red: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --code-bg: #0d1117;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Sora', sans-serif;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-image:
+      radial-gradient(ellipse 80% 50% at 20% -10%, rgba(0,217,255,0.08) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 40% at 80% 110%, rgba(124,58,237,0.08) 0%, transparent 60%);
+  }
+
+  .container { max-width: 960px; margin: 0 auto; }
+
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    animation: fadeDown 0.6s ease both;
+  }
+
+  .badge {
+    display: inline-block;
+    background: linear-gradient(135deg, rgba(0,217,255,0.15), rgba(124,58,237,0.15));
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 700;
+    background: linear-gradient(135deg, #fff 30%, var(--accent));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.2;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    font-weight: 300;
+  }
+
+  /* Architecture diagram */
+  .arch {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    line-height: 1.8;
+    overflow-x: auto;
+    animation: fadeUp 0.6s 0.1s ease both;
+    position: relative;
+  }
+
+  .arch::before {
+    content: 'ARCHITECTURE';
+    position: absolute;
+    top: 12px; right: 16px;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 32px 0;
+    animation: fadeUp 0.6s 0.15s ease both;
+  }
+
+  .flow-box {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px 24px;
+    text-align: center;
+    min-width: 120px;
+    position: relative;
+    transition: border-color 0.3s, transform 0.3s;
+  }
+
+  .flow-box:hover { border-color: var(--accent); transform: translateY(-2px); }
+
+  .flow-box .icon { font-size: 28px; margin-bottom: 8px; }
+  .flow-box .label { font-size: 12px; font-weight: 600; color: var(--text); }
+  .flow-box .sub { font-size: 10px; color: var(--muted); margin-top: 4px; font-family: 'JetBrains Mono', monospace; }
+
+  .flow-box.highlight { border-color: var(--accent2); background: rgba(124,58,237,0.1); }
+
+  .arrow {
+    color: var(--accent);
+    font-size: 20px;
+    font-weight: bold;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+  /* File tree */
+  .section { margin-bottom: 40px; animation: fadeUp 0.6s 0.2s ease both; }
+
+  .section-title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 16px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .tree {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 2;
+  }
+
+  .tree-item { color: var(--text); }
+  .tree-item.dir { color: var(--accent); }
+  .tree-item.yaml { color: #22c55e; }
+  .tree-item.py { color: #f59e0b; }
+  .tree-item.sh { color: #a78bfa; }
+  .tree-item.github { color: var(--accent2); }
+  .tree-note {
+    color: var(--muted);
+    font-size: 11px;
+    margin-left: 8px;
+  }
+
+  /* Key files grid */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: border-color 0.3s, transform 0.3s;
+    animation: fadeUp 0.6s ease both;
+  }
+
+  .card:hover { border-color: var(--accent); transform: translateY(-3px); }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+
+  .card-icon { font-size: 20px; }
+  .card-title { font-size: 13px; font-weight: 700; }
+  .card-file {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .card-desc { font-size: 13px; color: #94a3b8; line-height: 1.6; }
+
+  .tag {
+    display: inline-block;
+    background: rgba(0,217,255,0.1);
+    color: var(--accent);
+    border-radius: 4px;
+    font-size: 10px;
+    padding: 2px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    margin-top: 8px;
+  }
+
+  .tag.purple { background: rgba(124,58,237,0.15); color: #a78bfa; }
+  .tag.green { background: rgba(34,197,94,0.1); color: var(--green); }
+  .tag.orange { background: rgba(245,158,11,0.1); color: var(--orange); }
+
+  /* Quick commands */
+  .steps { display: flex; flex-direction: column; gap: 12px; }
+
+  .step {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+  }
+
+  .step-num {
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    color: white;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .step-content { flex: 1; }
+  .step-label { font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .step-cmd {
+    background: var(--code-bg);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--green);
+  }
+
+  /* Scaling diagram */
+  .scale-diagram {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 40px;
+    animation: fadeUp 0.6s 0.25s ease both;
+  }
+
+  .scale-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+
+  .scale-label { width: 100px; color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+  .scale-bar-wrap { flex: 1; background: var(--code-bg); border-radius: 4px; height: 24px; overflow: hidden; }
+  .scale-bar { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; }
+  .scale-val { width: 60px; text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+
+  .pods { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
+  .pod { width: 12px; height: 12px; border-radius: 2px; background: var(--accent); opacity: 0.9; }
+  .pod.off { background: var(--border); opacity: 1; }
+
+  @keyframes fadeDown { from{opacity:0;transform:translateY(-20px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: 'JetBrains Mono', monospace;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div class="badge">KEDA · EKS · SQS · IRSA</div>
+    <h1>KEDA on EKS<br>Autoscaling Demo</h1>
+    <p class="subtitle">Event-driven scale-to-zero with Amazon SQS + Kubernetes</p>
+  </header>
+
+  <!-- Flow diagram -->
+  <div class="flow">
+    <div class="flow-box">
+      <div class="icon">🏭</div>
+      <div class="label">Producer Pod</div>
+      <div class="sub">sends messages</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="flow-box">
+      <div class="icon">📬</div>
+      <div class="label">Amazon SQS</div>
+      <div class="sub">message queue</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="flow-box highlight">
+      <div class="icon">⚡</div>
+      <div class="label">KEDA Operator</div>
+      <div class="sub">watches queue depth</div>
+    </div>
+    <div class="arrow">→</div>
+    <div class="flow-box">
+      <div class="icon">⚙️</div>
+      <div class="label">Consumer Pods</div>
+      <div class="sub">0 → N replicas</div>
+    </div>
+  </div>
+
+  <!-- Scaling visualization -->
+  <div class="section">
+    <div class="section-title">Scale-to-Zero Behavior</div>
+    <div class="scale-diagram">
+      <div class="scale-row">
+        <div class="scale-label">0 msgs</div>
+        <div>
+          <div class="pods">
+            <div class="pod off"></div><div class="pod off"></div><div class="pod off"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">0 pods — fully scaled to zero 💰</div>
+        </div>
+      </div>
+      <div class="scale-row">
+        <div class="scale-label">5 msgs</div>
+        <div>
+          <div class="pods">
+            <div class="pod"></div><div class="pod off"></div><div class="pod off"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">1 pod (ceil(5 ÷ 5) = 1)</div>
+        </div>
+      </div>
+      <div class="scale-row">
+        <div class="scale-label">50 msgs</div>
+        <div>
+          <div class="pods">
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">10 pods (ceil(50 ÷ 5) = 10)</div>
+        </div>
+      </div>
+      <div class="scale-row">
+        <div class="scale-label">100+ msgs</div>
+        <div>
+          <div class="pods">
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div><div class="pod"></div>
+            <div class="pod"></div><div class="pod"></div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px">20 pods — maxReplicaCount hit</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- File tree -->
+  <div class="section">
+    <div class="section-title">Project Structure</div>
+    <div class="tree">
+      <div class="tree-item dir">keda-eks-demo/</div>
+      <div class="tree-item github">├── .github/workflows/</div>
+      <div class="tree-item github">│   ├── ci.yml<span class="tree-note">lint · test · build images</span></div>
+      <div class="tree-item github">│   └── deploy.yml<span class="tree-note">push to EKS on merge to main</span></div>
+      <div class="tree-item dir">├── docs/</div>
+      <div class="tree-item">│   ├── keda-concepts.md<span class="tree-note">ScaledObject, TriggerAuth explained</span></div>
+      <div class="tree-item">│   └── setup.md<span class="tree-note">step-by-step cluster guide</span></div>
+      <div class="tree-item dir">├── manifests/</div>
+      <div class="tree-item yaml">│   ├── app/consumer-deployment.yaml</div>
+      <div class="tree-item yaml">│   ├── keda/scaledobject.yaml<span class="tree-note">⭐ core KEDA config</span></div>
+      <div class="tree-item yaml">│   └── keda/triggerauthentication.yaml</div>
+      <div class="tree-item dir">├── scripts/</div>
+      <div class="tree-item sh">│   ├── setup-cluster.sh<span class="tree-note">eksctl cluster creation</span></div>
+      <div class="tree-item sh">│   ├── install-keda.sh<span class="tree-note">helm install KEDA</span></div>
+      <div class="tree-item sh">│   ├── create-sqs.sh<span class="tree-note">SQS + IAM + IRSA</span></div>
+      <div class="tree-item sh">│   └── demo-load.sh<span class="tree-note">send N messages to trigger scaling</span></div>
+      <div class="tree-item dir">└── src/</div>
+      <div class="tree-item py">    ├── producer/main.py<span class="tree-note">SQS message sender</span></div>
+      <div class="tree-item py">    └── consumer/main.py<span class="tree-note">SQS message processor</span></div>
+    </div>
+  </div>
+
+  <!-- Key files -->
+  <div class="section">
+    <div class="section-title">Key Files Explained</div>
+    <div class="grid">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">⚡</div>
+          <div>
+            <div class="card-title">ScaledObject</div>
+            <div class="card-file">manifests/keda/scaledobject.yaml</div>
+          </div>
+        </div>
+        <div class="card-desc">The heart of the demo. Links your Consumer Deployment to SQS. Configures minReplicas=0 (scale-to-zero), maxReplicas=20, and 1 pod per 5 messages.</div>
+        <div class="tag">keda.sh/v1alpha1</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🔐</div>
+          <div>
+            <div class="card-title">TriggerAuthentication</div>
+            <div class="card-file">manifests/keda/triggerauthentication.yaml</div>
+          </div>
+        </div>
+        <div class="card-desc">Uses AWS Pod Identity (IRSA) so KEDA can call SQS APIs without storing any credentials. Fully IAM-native.</div>
+        <div class="tag purple">IRSA · No Secrets</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🐍</div>
+          <div>
+            <div class="card-title">Consumer Worker</div>
+            <div class="card-file">src/consumer/main.py</div>
+          </div>
+        </div>
+        <div class="card-desc">Long-polling SQS consumer. Receives up to 10 messages at once, processes them, and deletes on success. Runs in KEDA-managed pods.</div>
+        <div class="tag orange">Python · boto3</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🏗️</div>
+          <div>
+            <div class="card-title">Cluster Bootstrap</div>
+            <div class="card-file">scripts/setup-cluster.sh</div>
+          </div>
+        </div>
+        <div class="card-desc">Creates EKS cluster via eksctl with OIDC enabled (required for IRSA). Managed node group with auto-scaling 1–5 nodes.</div>
+        <div class="tag green">eksctl · OIDC</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">🔄</div>
+          <div>
+            <div class="card-title">CI Pipeline</div>
+            <div class="card-file">.github/workflows/ci.yml</div>
+          </div>
+        </div>
+        <div class="card-desc">Runs flake8 linting, unit tests, validates K8s manifests, builds Docker images, and pushes to ECR on every merge to main.</div>
+        <div class="tag purple">GitHub Actions · ECR</div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <div class="card-icon">📨</div>
+          <div>
+            <div class="card-title">Demo Load Script</div>
+            <div class="card-file">scripts/demo-load.sh</div>
+          </div>
+        </div>
+        <div class="card-desc">Sends N messages to SQS to trigger KEDA scaling. Shows queue depth in real-time. Watch pods appear with kubectl get pods -w.</div>
+        <div class="tag green">Demo · Load Test</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick start steps -->
+  <div class="section">
+    <div class="section-title">Quick Start</div>
+    <div class="steps">
+      <div class="step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <div class="step-label">Create EKS Cluster</div>
+          <div class="step-cmd">./scripts/setup-cluster.sh</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <div class="step-label">Install KEDA via Helm</div>
+          <div class="step-cmd">./scripts/install-keda.sh</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <div class="step-label">Create SQS Queue + IRSA Role</div>
+          <div class="step-cmd">./scripts/create-sqs.sh</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">4</div>
+        <div class="step-content">
+          <div class="step-label">Deploy App + KEDA ScaledObject</div>
+          <div class="step-cmd">kubectl apply -f manifests/</div>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num">5</div>
+        <div class="step-content">
+          <div class="step-label">Send Load & Watch Pods Scale ✨</div>
+          <div class="step-cmd">./scripts/demo-load.sh 100 &amp;&amp; kubectl get pods -n keda-demo -w</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <footer>KEDA v2.13 · EKS 1.29 · Python 3.11 · GitHub Actions · AWS SQS + IRSA</footer>
+</div>
+</body>
+</html>

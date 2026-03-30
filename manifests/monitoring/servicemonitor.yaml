@@ -1,0 +1,99 @@
+# =============================================================================
+# ServiceMonitors — tell Prometheus Operator which pods/services to scrape
+# =============================================================================
+
+# 1. KEDA Metrics API Server — keda_scaler_metrics_value, keda_scaler_active
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keda-metrics-apiserver
+  namespace: keda
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [keda]
+  selector:
+    matchLabels:
+      app: keda-metrics-apiserver
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+---
+# 2. KEDA Operator — reconcile loop health, error counters
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keda-operator
+  namespace: keda
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [keda]
+  selector:
+    matchLabels:
+      app: keda-operator
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# 3. Consumer App — messages_processed_total, processing_duration_seconds
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keda-demo-consumer
+  namespace: keda-demo
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [keda-demo]
+  selector:
+    matchLabels:
+      app: consumer
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# 4. Producer App — messages_sent_total, send_errors_total
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: keda-demo-producer
+  namespace: keda-demo
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [keda-demo]
+  selector:
+    matchLabels:
+      app: producer
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s
+---
+# 5. OpenTelemetry Collector — otelcol_receiver_accepted_spans, pipeline health
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: otel-collector
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames: [monitoring]
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: opentelemetry-collector
+  endpoints:
+    - port: metrics
+      path: /metrics
+      interval: 15s

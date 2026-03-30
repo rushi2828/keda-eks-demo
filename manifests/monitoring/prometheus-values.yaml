@@ -1,0 +1,114 @@
+# =============================================================================
+# prometheus-values.yaml
+# Helm values for kube-prometheus-stack — customized for KEDA demo
+# Install: helm upgrade --install kube-prometheus-stack \
+#            prometheus-community/kube-prometheus-stack \
+#            -f manifests/monitoring/prometheus-values.yaml \
+#            -n monitoring --create-namespace
+# =============================================================================
+
+nameOverride: ""
+fullnameOverride: ""
+
+# ---------------------------------------------------------------------------
+# Prometheus — main metrics store
+# ---------------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # Scrape interval (default 1m is too slow for scaling demos)
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+
+    # Retain 7 days of metrics
+    retention: 7d
+
+    # Allow ServiceMonitors from ALL namespaces (not just monitoring ns)
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelector: {}
+    serviceMonitorNamespaceSelector: {}
+
+    # Persistent storage for metrics (EBS on EKS)
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 20Gi
+
+    # Extra scrape configs for services without ServiceMonitor CRDs
+    additionalScrapeConfigs:
+      - job_name: 'keda-demo-sqs-exporter'
+        static_configs:
+          - targets: ['localhost:9090']
+        metrics_path: /metrics
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+# ---------------------------------------------------------------------------
+# Grafana — dashboards and visualization
+# ---------------------------------------------------------------------------
+grafana:
+  enabled: true
+  adminPassword: "keda-demo-2024"   # Change for production!
+
+  # Provision our custom KEDA dashboard automatically
+  dashboardProviders:
+    dashboardproviders.yaml:
+      apiVersion: 1
+      providers:
+        - name: keda-demo
+          orgId: 1
+          folder: "KEDA Demo"
+          type: file
+          options:
+            path: /var/lib/grafana/dashboards/keda-demo
+
+  dashboardsConfigMaps:
+    keda-demo: "grafana-dashboard-keda"   # Refers to ConfigMap created separately
+
+  # Add Loki as datasource alongside Prometheus
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.monitoring.svc.cluster.local
+      access: proxy
+      isDefault: false
+
+  persistence:
+    enabled: true
+    storageClassName: gp2
+    size: 5Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# Alertmanager — optional alerts for queue backup scenarios
+# ---------------------------------------------------------------------------
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          resources:
+            requests:
+              storage: 2Gi
+
+# Built-in node/k8s exporters
+nodeExporter:
+  enabled: true
+
+kubeStateMetrics:
+  enabled: true

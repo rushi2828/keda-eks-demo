@@ -1,0 +1,12 @@
+# ─────────────────────────────────────────────────────────────────
+# TriggerAuthentication: tells KEDA to use IRSA (pod identity)
+# No static AWS credentials needed — uses the EKS OIDC provider
+# ─────────────────────────────────────────────────────────────────
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: keda-trigger-auth-aws
+  namespace: keda-demo
+spec:
+  podIdentity:
+    provider: aws

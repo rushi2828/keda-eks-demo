@@ -1,0 +1,93 @@
+# =============================================================================
+# loki-values.yaml
+# Helm values for Grafana Loki (log aggregation) + Promtail (log shipper)
+# Install: helm upgrade --install loki grafana/loki-stack \
+#            -f manifests/monitoring/loki-values.yaml \
+#            -n monitoring
+# =============================================================================
+
+loki:
+  enabled: true
+
+  # Single-binary mode — simple enough for demo, switch to microservices for prod
+  deploymentMode: SingleBinary
+
+  loki:
+    auth_enabled: false   # No multi-tenancy for demo
+
+    commonConfig:
+      replication_factor: 1
+
+    storage:
+      type: filesystem   # Use S3 for production
+
+    schemaConfig:
+      configs:
+        - from: "2024-01-01"
+          store: tsdb
+          object_store: filesystem
+          schema: v13
+          index:
+            prefix: index_
+            period: 24h
+
+    limits_config:
+      # Retention: keep logs for 72 hours in demo
+      retention_period: 72h
+      # Allow high ingestion rate from many consumer pods
+      ingestion_rate_mb: 16
+      ingestion_burst_size_mb: 32
+
+  persistence:
+    enabled: true
+    storageClassName: gp2
+    size: 10Gi
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ---------------------------------------------------------------------------
+# Promtail — DaemonSet that ships pod logs to Loki
+# ---------------------------------------------------------------------------
+promtail:
+  enabled: true
+
+  config:
+    # Add extra labels so we can filter logs by app in Grafana
+    snippets:
+      extraScrapeConfigs: |
+        - job_name: keda-demo-pods
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names: [keda-demo, keda]
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_label_app]
+              target_label: app
+            - source_labels: [__meta_kubernetes_namespace]
+              target_label: namespace
+            - source_labels: [__meta_kubernetes_pod_name]
+              target_label: pod
+          pipeline_stages:
+            # Parse JSON logs emitted by producer/consumer Python apps
+            - json:
+                expressions:
+                  level: level
+                  job_id: job_id
+                  message: message
+            - labels:
+                level:
+                job_id:
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
